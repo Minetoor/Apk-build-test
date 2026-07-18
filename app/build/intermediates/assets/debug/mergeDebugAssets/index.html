@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liquid Glass Music — Customizable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;700&family=Work+Sans:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* ===== glass ===== */
+    --glass-blur: 22px;
+    --glass-sat: 190%;
+    --corner-radius: 32px;
+    --tint-r: 255; --tint-g: 255; --tint-b: 255;
+    --tint-alpha: 0.10;
+    --rim-alpha: 0.25;
+    --card-width: 420px;
+    --card-alpha: 1;
+
+    /* ===== type ===== */
+    --font-display: 'Fraunces', serif;
+    --font-body: 'Inter', sans-serif;
+    --title-size: 19px;
+
+    /* ===== color ===== */
+    --accent: #ffd166;
+    --text-1: #ffffff;
+    --text-2: rgba(255,255,255,0.72);
+
+    --edge-light: rgba(255,255,255,0.55);
+    --edge-dark: rgba(0,0,0,0.18);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    font-family:'Inter', sans-serif;
+    overflow:hidden;
+    background:#0a0410;
+  }
+
+  /* ===== Backdrop: the "sampling source" for the glass ===== */
+  .stage{
+    position:relative;
+    width:100%; height:100vh;
+    overflow:hidden;
+    background-size:140% 140%, 140% 140%, 140% 140%, 100% 100%;
+    background-position:0% 0%, 100% 0%, 50% 100%, 0% 0%;
+    transition: background 0.4s ease;
+  }
+  .stage.animated{ animation: drift 22s ease-in-out infinite alternate; }
+  @keyframes drift{
+    0%{ background-position: 0% 0%, 100% 0%, 50% 100%, 0% 0%; }
+    100%{ background-position: 20% 30%, 70% 20%, 40% 80%, 0% 0%; }
+  }
+  .stage[data-bg="sunset"], .glass-bg[data-bg="sunset"]{
+    background-image:
+      radial-gradient(circle at 20% 15%, #ff9a4d 0%, transparent 45%),
+      radial-gradient(circle at 80% 10%, #ff4d9e 0%, transparent 50%),
+      radial-gradient(circle at 50% 90%, #5b3dff 0%, transparent 55%),
+      linear-gradient(160deg, #2b0a52 0%, #6a1b9a 35%, #e0457f 70%, #ffb347 100%);
+  }
+  .stage[data-bg="ocean"], .glass-bg[data-bg="ocean"]{
+    background-image:
+      radial-gradient(circle at 15% 20%, #4dd0ff 0%, transparent 45%),
+      radial-gradient(circle at 85% 15%, #00c2a8 0%, transparent 50%),
+      radial-gradient(circle at 50% 95%, #123a7a 0%, transparent 55%),
+      linear-gradient(160deg, #021024 0%, #023e8a 40%, #0096c7 75%, #48cae4 100%);
+  }
+  .stage[data-bg="forest"], .glass-bg[data-bg="forest"]{
+    background-image:
+      radial-gradient(circle at 15% 15%, #9ef01a 0%, transparent 45%),
+      radial-gradient(circle at 85% 10%, #38b000 0%, transparent 50%),
+      radial-gradient(circle at 50% 95%, #073b3a 0%, transparent 55%),
+      linear-gradient(160deg, #081c15 0%, #1b4332 40%, #2d6a4f 75%, #74c69d 100%);
+  }
+  .stage[data-bg="mono"], .glass-bg[data-bg="mono"]{
+    background-image:
+      radial-gradient(circle at 20% 15%, #666 0%, transparent 45%),
+      radial-gradient(circle at 80% 10%, #999 0%, transparent 50%),
+      radial-gradient(circle at 50% 90%, #222 0%, transparent 55%),
+      linear-gradient(160deg, #0b0b0b 0%, #262626 35%, #404040 70%, #6b6b6b 100%);
+  }
+  .stage[data-bg="mono"] .grain{ opacity:0.08; }
+
+  .stage::after{
+    content:"";
+    position:absolute; inset:0;
+    background:rgba(0,0,0,0.16);
+    pointer-events:none;
+  }
+  .grain{
+    position:absolute; inset:0;
+    opacity:0.05; mix-blend-mode:overlay; pointer-events:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ===== Glass background layer =====
+     A duplicate of the stage background, clipped (via JS) to exactly the
+     card's rounded-rect bounds, with a plain `filter` (blur + saturate +
+     SVG refraction) applied. Using `filter` instead of `backdrop-filter`
+     means this reliably renders in every browser/embedded context, since
+     backdrop-filter support and behavior varies a lot by environment. */
+  .glass-bg{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background-size:140% 140%, 140% 140%, 140% 140%, 100% 100%;
+    background-position:0% 0%, 100% 0%, 50% 100%, 0% 0%;
+    filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) url(#liquidRefract);
+    clip-path: inset(50% 50% 50% 50% round 0px);
+  }
+  .glass-bg.animated{ animation: drift 22s ease-in-out infinite alternate; }
+
+  svg.defs{ position:absolute; width:0; height:0; }
+
+  /* ===== The card ===== */
+  .card{
+    position:absolute;
+    left:50%; bottom:6vh;
+    transform:translateX(-50%);
+    width:min(var(--card-width), 92vw);
+    border-radius: var(--corner-radius);
+    padding:18px 20px 16px;
+    color:var(--text-1);
+    cursor:grab;
+    touch-action:none;
+    will-change:left, top;
+    transition: box-shadow .15s ease, border-radius .2s ease, width .2s ease;
+
+    background: rgba(var(--tint-r), var(--tint-g), var(--tint-b), var(--tint-alpha));
+    opacity: var(--card-alpha);
+
+    box-shadow:
+      0 20px 60px rgba(0,0,0,0.35),
+      inset 0 1px 1px var(--edge-light),
+      inset 0 -1px 1px var(--edge-dark),
+      inset 0 0 0 1px rgba(255,255,255, var(--rim-alpha));
+
+    overflow:hidden;
+  }
+  /* Optional bonus crispness where backdrop-filter is actually supported —
+     purely additive, the glass-bg layer behind the card is what guarantees
+     the visible blur/refraction regardless of browser support. */
+  @supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)){
+    .card{
+      backdrop-filter: saturate(120%);
+      -webkit-backdrop-filter: saturate(120%);
+    }
+  }
+  .card.dragging{
+    cursor:grabbing;
+    transition:none;
+    box-shadow:
+      0 30px 80px rgba(0,0,0,0.5),
+      inset 0 1px 1px var(--edge-light),
+      inset 0 -1px 1px var(--edge-dark),
+      inset 0 0 0 1px rgba(255,255,255, var(--rim-alpha));
+  }
+  .card.locked{ cursor:default; }
+
+  .card .sheen{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background: radial-gradient(180px 180px at var(--mx,50%) var(--my,0%),
+                rgba(255,255,255,0.35), rgba(255,255,255,0) 60%);
+    mix-blend-mode:screen;
+    opacity:0.9;
+  }
+  .card .rim{
+    position:absolute; inset:0; border-radius:var(--corner-radius);
+    pointer-events:none;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255, var(--rim-alpha));
+  }
+
+  .row{ display:flex; align-items:center; gap:14px; position:relative; z-index:2;}
+
+  .thumb{
+    width:52px; height:52px; border-radius:14px; flex:none;
+    background-size:cover; background-position:center;
+    background-image: conic-gradient(from 200deg, #ffb347, #e0457f, #5b3dff, #ffb347);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25), 0 4px 14px rgba(0,0,0,0.35);
+    animation: spin 8s linear infinite;
+    animation-play-state: paused;
+  }
+  .thumb.spinning{ animation-play-state: running; }
+  .thumb.hidden{ display:none; }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+
+  .meta{ min-width:0; flex:1; }
+  .title{
+    font-family: var(--font-display);
+    font-weight:600;
+    font-size: var(--title-size);
+    letter-spacing:0.2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .artist{
+    font-family: var(--font-body);
+    font-size:13px;
+    color:var(--text-2);
+    margin-top:2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .artist.hidden{ display:none; }
+
+  .controls{ display:flex; align-items:center; gap:6px; flex:none; }
+  .iconbtn{
+    width:38px; height:38px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; border:none; color:#fff; cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .12s ease, background .12s ease;
+  }
+  .iconbtn:hover{ background:rgba(255,255,255,0.14); }
+  .iconbtn:active{ transform:scale(0.88); }
+  .iconbtn svg{ width:18px; height:18px; }
+  .playbtn{
+    width:50px; height:50px;
+    background:rgba(255,255,255,0.16);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.5), inset 0 -1px 1px rgba(0,0,0,0.2);
+  }
+  .playbtn:hover{ background:rgba(255,255,255,0.24); }
+  .playbtn svg{ width:20px; height:20px; }
+
+  .seek-wrap{ position:relative; z-index:2; margin-top:14px; }
+  .seek-wrap.hidden{ display:none; }
+  .seek-track{
+    position:relative; height:4px; border-radius:4px;
+    background:rgba(255,255,255,0.28); cursor:pointer;
+  }
+  .seek-fill{
+    position:absolute; left:0; top:0; bottom:0; border-radius:4px;
+    background:linear-gradient(90deg, var(--accent), #fff); width:32%;
+  }
+  .seek-thumb{
+    position:absolute; top:50%; width:12px; height:12px; border-radius:50%;
+    background:#fff; transform:translate(-50%,-50%);
+    box-shadow:0 2px 6px rgba(0,0,0,0.4); left:32%;
+  }
+  .time-row{
+    display:flex; justify-content:space-between; font-family: var(--font-body);
+    font-size:11px; color:var(--text-2); margin-top:6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hint{
+    position:absolute; top:24px; left:0; right:0;
+    text-align:center; color:rgba(255,255,255,0.65);
+    font-size:12px; letter-spacing:0.4px; text-transform:uppercase;
+    font-weight:500; font-family: var(--font-body);
+    pointer-events:none;
+  }
+  .hint.hidden{ display:none; }
+
+  /* ===================== SETTINGS PANEL ===================== */
+  .gear{
+    position:absolute; top:20px; right:20px; z-index:20;
+    width:44px; height:44px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,0.12);
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.4), 0 6px 18px rgba(0,0,0,0.3);
+    border:none; color:#fff; cursor:pointer;
+    transition: transform .3s ease, background .2s ease;
+  }
+  .gear:hover{ background:rgba(255,255,255,0.2); }
+  .gear.open{ transform:rotate(75deg); }
+  .gear svg{ width:20px; height:20px; }
+
+  .panel{
+    position:absolute; top:20px; right:20px; z-index:19;
+    width:300px; max-height:calc(100vh - 40px);
+    overflow-y:auto;
+    border-radius:24px;
+    padding:64px 18px 18px;
+    background: rgba(15, 10, 25, 0.55);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.15), 0 20px 60px rgba(0,0,0,0.45);
+    color:#fff; font-family:'Inter', sans-serif;
+    transform: translateX(340px);
+    opacity:0;
+    transition: transform .32s cubic-bezier(.2,.8,.2,1), opacity .25s ease;
+    pointer-events:none;
+  }
+  .panel.open{ transform:translateX(0); opacity:1; pointer-events:auto; }
+
+  .panel h3{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.6px;
+    color:rgba(255,255,255,0.55); margin:18px 0 10px; font-weight:600;
+  }
+  .panel h3:first-of-type{ margin-top:0; }
+
+  .field{ margin-bottom:12px; }
+  .field label{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:12.5px; color:rgba(255,255,255,0.85); margin-bottom:5px;
+  }
+  .field label span.val{ color:rgba(255,255,255,0.5); font-variant-numeric:tabular-nums; }
+
+  input[type="range"]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:4px;
+    background:rgba(255,255,255,0.25); outline:none;
+  }
+  input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:#fff; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
+  input[type="text"], select, textarea{
+    width:100%; padding:8px 10px; border-radius:10px; border:none;
+    background:rgba(255,255,255,0.12); color:#fff; font-size:13px;
+    font-family:'Inter', sans-serif;
+  }
+  select option{ color:#111; }
+  input[type="text"]::placeholder{ color:rgba(255,255,255,0.4); }
+  input[type="color"]{
+    width:32px; height:32px; border:none; border-radius:8px; background:none; padding:0; cursor:pointer;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper{ padding:0; }
+  input[type="color"]::-webkit-color-swatch{ border:none; border-radius:8px; }
+
+  .color-row{ display:flex; align-items:center; gap:10px; }
+  .color-row input[type="text"]{ flex:1; }
+
+  .swatches{ display:flex; gap:8px; }
+  .swatch{
+    flex:1; height:34px; border-radius:10px; cursor:pointer;
+    border:2px solid transparent; transition:border-color .15s ease;
+  }
+  .swatch.active{ border-color:#fff; }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .toggle-row span{ font-size:12.5px; color:rgba(255,255,255,0.85); }
+  .switch{
+    position:relative; width:38px; height:22px; border-radius:12px;
+    background:rgba(255,255,255,0.25); cursor:pointer; transition:background .2s ease; flex:none;
+  }
+  .switch::after{
+    content:""; position:absolute; top:2px; left:2px; width:18px; height:18px;
+    border-radius:50%; background:#fff; transition:left .2s ease;
+  }
+  .switch.on{ background:var(--accent); }
+  .switch.on::after{ left:18px; }
+
+  .btnrow{ display:flex; gap:8px; margin-top:6px; }
+  .smallbtn{
+    flex:1; padding:9px 10px; border-radius:10px; border:none;
+    background:rgba(255,255,255,0.14); color:#fff; font-size:12.5px; font-weight:500;
+    cursor:pointer; font-family:'Inter', sans-serif; transition:background .15s ease;
+  }
+  .smallbtn:hover{ background:rgba(255,255,255,0.24); }
+  .filebtn{ display:block; }
+  .filebtn input{ display:none; }
+
+  .toast{
+    position:absolute; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:rgba(20,20,20,0.85); color:#fff; padding:10px 18px; border-radius:12px;
+    font-size:13px; font-family:'Inter',sans-serif; opacity:0; transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none; z-index:30;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (prefers-reduced-motion: reduce){
+    .stage.animated{ animation:none; }
+    .thumb{ animation:none; }
+  }
+  @media (max-width: 480px){
+    .panel{ width:calc(100vw - 40px); }
+  }
+</style>
+</head>
+<body>
+
+<svg class="defs">
+  <filter id="liquidRefract" x="-20%" y="-20%" width="140%" height="140%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.008 0.03" numOctaves="2" seed="7" result="noise"/>
+    <feDisplacementMap id="displaceMap" in="SourceGraphic" in2="noise" scale="14" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<div class="stage animated" id="stage" data-bg="sunset">
+  <div class="grain"></div>
+  <div class="hint" id="hint">Now Playing</div>
+
+  <div class="glass-bg animated" id="glassBg" data-bg="sunset"></div>
+
+  <div class="card" id="card">
+    <div class="sheen" id="sheen"></div>
+    <div class="rim"></div>
+
+    <div class="row">
+      <div class="thumb" id="thumb"></div>
+      <div class="meta">
+        <div class="title" id="titleText">Midnight Drive</div>
+        <div class="artist" id="artistText">Neon Skyline</div>
+      </div>
+      <div class="controls">
+        <button class="iconbtn" id="prev" aria-label="Previous track">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6,6h2v12h-2zM9.5,12l8.5,6V6z"/></svg>
+        </button>
+        <button class="iconbtn playbtn" id="playPause" aria-label="Play">
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8,5v14l11,-7z"/></svg>
+        </button>
+        <button class="iconbtn" id="next" aria-label="Next track">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="seek-wrap" id="seekWrap">
+      <div class="seek-track" id="seekTrack">
+        <div class="seek-fill" id="seekFill"></div>
+        <div class="seek-thumb" id="seekThumb"></div>
+      </div>
+      <div class="time-row">
+        <span id="curTime">1:12</span>
+        <span id="totalTime">3:34</span>
+      </div>
+    </div>
+  </div>
+
+  <button class="gear" id="gearBtn" aria-label="Customize">
+    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14,12.94c0.04,-0.3 0.06,-0.61 0.06,-0.94c0,-0.32 -0.02,-0.64 -0.07,-0.94l2.03,-1.58c0.18,-0.14 0.23,-0.41 0.12,-0.61l-1.92,-3.32c-0.12,-0.22 -0.37,-0.29 -0.59,-0.22l-2.39,0.96c-0.5,-0.38 -1.03,-0.7 -1.62,-0.94L14.4,2.81c-0.04,-0.24 -0.24,-0.41 -0.48,-0.41h-3.84c-0.24,0 -0.43,0.17 -0.47,0.41L9.25,5.35C8.66,5.59 8.12,5.92 7.63,6.29L5.24,5.33c-0.22,-0.08 -0.47,0 -0.59,0.22L2.74,8.87C2.62,9.08 2.66,9.34 2.86,9.48l2.03,1.58C4.84,11.36 4.8,11.69 4.8,12s0.02,0.64 0.07,0.94l-2.03,1.58c-0.18,0.14 -0.23,0.41 -0.12,0.61l1.92,3.32c0.12,0.22 0.37,0.29 0.59,0.22l2.39,-0.96c0.5,0.38 1.03,0.7 1.62,0.94l0.36,2.54c0.05,0.24 0.24,0.41 0.48,0.41h3.84c0.24,0 0.44,-0.17 0.47,-0.41l0.36,-2.54c0.59,-0.24 1.13,-0.56 1.62,-0.94l2.39,0.96c0.22,0.08 0.47,0 0.59,-0.22l1.92,-3.32c0.12,-0.22 0.07,-0.47 -0.12,-0.61L19.14,12.94zM12,15.6c-1.98,0 -3.6,-1.62 -3.6,-3.6s1.62,-3.6 3.6,-3.6s3.6,1.62 3.6,3.6S13.98,15.6 12,15.6z"/></svg>
+  </button>
+
+  <div class="panel" id="panel">
+
+    <h3>Background</h3>
+    <div class="field">
+      <div class="swatches" id="bgSwatches">
+        <div class="swatch active" data-bg="sunset" style="background:linear-gradient(135deg,#ff9a4d,#e0457f,#5b3dff)"></div>
+        <div class="swatch" data-bg="ocean" style="background:linear-gradient(135deg,#48cae4,#0096c7,#023e8a)"></div>
+        <div class="swatch" data-bg="forest" style="background:linear-gradient(135deg,#9ef01a,#2d6a4f,#081c15)"></div>
+        <div class="swatch" data-bg="mono" style="background:linear-gradient(135deg,#999,#404040,#0b0b0b)"></div>
+      </div>
+    </div>
+    <div class="field filebtn">
+      <label for="bgUpload" class="smallbtn" style="display:block; text-align:center;">Upload background image</label>
+      <input type="file" id="bgUpload" accept="image/*">
+    </div>
+    <div class="toggle-row">
+      <span>Animate background</span>
+      <div class="switch on" id="toggleAnim"></div>
+    </div>
+
+    <h3>Glass</h3>
+    <div class="field">
+      <label>Blur <span class="val" id="blurVal">22px</span></label>
+      <input type="range" id="blurRange" min="0" max="48" value="22">
+    </div>
+    <div class="field">
+      <label>Saturation <span class="val" id="satVal">190%</span></label>
+      <input type="range" id="satRange" min="100" max="260" value="190">
+    </div>
+    <div class="field">
+      <label>Corner radius <span class="val" id="radiusVal">32px</span></label>
+      <input type="range" id="radiusRange" min="4" max="48" value="32">
+    </div>
+    <div class="field">
+      <label>Refraction strength <span class="val" id="refractVal">14</span></label>
+      <input type="range" id="refractRange" min="0" max="40" value="14">
+    </div>
+    <div class="field">
+      <label>Rim highlight <span class="val" id="rimVal">0.25</span></label>
+      <input type="range" id="rimRange" min="0" max="60" value="25">
+    </div>
+    <div class="field">
+      <label>Card opacity <span class="val" id="cardAlphaVal">1.0</span></label>
+      <input type="range" id="cardAlphaRange" min="30" max="100" value="100">
+    </div>
+    <div class="field">
+      <label>Tint color <span class="val" id="tintAlphaVal">0.10</span></label>
+      <div class="color-row">
+        <input type="color" id="tintColor" value="#ffffff">
+        <input type="range" id="tintAlphaRange" min="0" max="40" value="10">
+      </div>
+    </div>
+    <div class="field">
+      <label>Card width <span class="val" id="widthVal">420px</span></label>
+      <input type="range" id="widthRange" min="280" max="560" value="420">
+    </div>
+
+    <h3>Typography &amp; Accent</h3>
+    <div class="field">
+      <label>Font pairing</label>
+      <select id="fontSelect">
+        <option value="fraunces-inter">Fraunces / Inter</option>
+        <option value="playfair-work">Playfair Display / Work Sans</option>
+        <option value="grotesk-mono">Space Grotesk / IBM Plex Mono</option>
+        <option value="poppins-poppins">Poppins / Poppins</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Accent color</label>
+      <div class="color-row">
+        <input type="color" id="accentColor" value="#ffd166">
+      </div>
+    </div>
+
+    <h3>Track info</h3>
+    <div class="field">
+      <label>Title</label>
+      <input type="text" id="titleInput" value="Midnight Drive">
+    </div>
+    <div class="field">
+      <label>Artist</label>
+      <input type="text" id="artistInput" value="Neon Skyline">
+    </div>
+    <div class="field filebtn">
+      <label for="artUpload" class="smallbtn" style="display:block; text-align:center;">Upload album art</label>
+      <input type="file" id="artUpload" accept="image/*">
+    </div>
+
+    <h3>Layout</h3>
+    <div class="toggle-row">
+      <span>Show album thumbnail</span>
+      <div class="switch on" id="toggleThumb"></div>
+    </div>
+    <div class="toggle-row">
+      <span>Show artist line</span>
+      <div class="switch on" id="toggleArtist"></div>
+    </div>
+    <div class="toggle-row">
+      <span>Show seek bar</span>
+      <div class="switch on" id="toggleSeek"></div>
+    </div>
+    <div class="toggle-row">
+      <span>Show "Now Playing" label</span>
+      <div class="switch on" id="toggleHint"></div>
+    </div>
+    <div class="toggle-row">
+      <span>Lock position</span>
+      <div class="switch" id="toggleLock"></div>
+    </div>
+
+    <h3>Presets</h3>
+    <div class="btnrow">
+      <button class="smallbtn" id="copySettings">Copy settings</button>
+      <button class="smallbtn" id="pasteSettings">Paste settings</button>
+    </div>
+    <div class="btnrow">
+      <button class="smallbtn" id="resetPos">Reset position</button>
+      <button class="smallbtn" id="resetAll">Reset all</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+  const stage = document.getElementById('stage');
+  const card = document.getElementById('card');
+  const glassBg = document.getElementById('glassBg');
+  const sheen = document.getElementById('sheen');
+  const thumb = document.getElementById('thumb');
+  const playPause = document.getElementById('playPause');
+  const playIcon = document.getElementById('playIcon');
+  const seekTrack = document.getElementById('seekTrack');
+  const seekFill = document.getElementById('seekFill');
+  const seekThumb = document.getElementById('seekThumb');
+  const curTimeEl = document.getElementById('curTime');
+  const totalTimeEl = document.getElementById('totalTime');
+  const titleText = document.getElementById('titleText');
+  const artistText = document.getElementById('artistText');
+  const displaceMap = document.getElementById('displaceMap');
+  const root = document.documentElement;
+  const toast = document.getElementById('toast');
+
+  const tracks = [
+    { title: "Midnight Drive", artist: "Neon Skyline", total: 214 },
+    { title: "Paper Moon",     artist: "Static Bloom", total: 187 },
+    { title: "Glass Horizon",  artist: "Kepler Six",   total: 251 },
+  ];
+  let trackIndex = 0;
+  let isPlaying = false;
+  let progress = 0.32;
+  let rafId = null;
+  let lastTs = null;
+  let customTrack = false;
+
+  function fmt(sec){
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec/60), s = sec%60;
+    return m + ":" + String(s).padStart(2,'0');
+  }
+  function renderTrack(){
+    if(customTrack) return;
+    const t = tracks[trackIndex];
+    titleText.textContent = t.title;
+    artistText.textContent = t.artist;
+    totalTimeEl.textContent = fmt(t.total);
+    updateSeekUI();
+  }
+  function currentTotal(){
+    return customTrack ? 214 : tracks[trackIndex].total;
+  }
+  function updateSeekUI(){
+    const pct = (progress*100).toFixed(2) + "%";
+    seekFill.style.width = pct;
+    seekThumb.style.left = pct;
+    curTimeEl.textContent = fmt(progress * currentTotal());
+    if(customTrack) totalTimeEl.textContent = fmt(currentTotal());
+  }
+  function tick(ts){
+    if(!lastTs) lastTs = ts;
+    const dt = (ts - lastTs) / 1000;
+    lastTs = ts;
+    progress += dt / currentTotal();
+    if(progress >= 1){
+      progress = 0;
+      if(!customTrack) nextTrack();
+      updateSeekUI();
+      rafId = requestAnimationFrame(tick);
+      return;
+    }
+    updateSeekUI();
+    rafId = requestAnimationFrame(tick);
+  }
+  function setPlaying(state){
+    isPlaying = state;
+    thumb.classList.toggle('spinning', isPlaying);
+    playIcon.innerHTML = isPlaying
+      ? '<path d="M6,5h4v14h-4z"/><path d="M14,5h4v14h-4z"/>'
+      : '<path d="M8,5v14l11,-7z"/>';
+    playPause.setAttribute('aria-label', isPlaying ? 'Pause' : 'Play');
+    if(isPlaying){ lastTs = null; rafId = requestAnimationFrame(tick); }
+    else if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+  }
+  function nextTrack(){
+    if(customTrack) return;
+    trackIndex = (trackIndex + 1) % tracks.length;
+    renderTrack();
+  }
+  function prevTrack(){
+    if(customTrack) return;
+    trackIndex = (trackIndex - 1 + tracks.length) % tracks.length;
+    renderTrack();
+  }
+  playPause.addEventListener('click', () => setPlaying(!isPlaying));
+  document.getElementById('next').addEventListener('click', nextTrack);
+  document.getElementById('prev').addEventListener('click', prevTrack);
+
+  let seeking = false;
+  function seekFromEvent(e){
+    const rect = seekTrack.getBoundingClientRect();
+    const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+    progress = Math.min(1, Math.max(0, x / rect.width));
+    updateSeekUI();
+  }
+  seekTrack.addEventListener('pointerdown', (e) => { seeking = true; seekFromEvent(e); });
+  window.addEventListener('pointermove', (e) => { if(seeking) seekFromEvent(e); });
+  window.addEventListener('pointerup', () => seeking = false);
+
+  function syncGlassClip(){
+    try{
+      const cardRect = card.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const top = Math.max(0, cardRect.top - stageRect.top);
+      const left = Math.max(0, cardRect.left - stageRect.left);
+      const right = Math.max(0, stageRect.width - (left + cardRect.width));
+      const bottom = Math.max(0, stageRect.height - (top + cardRect.height));
+      const radius = getComputedStyle(card).borderTopLeftRadius || '0px';
+      glassBg.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px round ${radius})`;
+    }catch(err){
+      console.error('syncGlassClip failed:', err);
+    }
+  }
+  new ResizeObserver(syncGlassClip).observe(card);
+  window.addEventListener('resize', syncGlassClip);
+  window.addEventListener('load', syncGlassClip);
+  setTimeout(syncGlassClip, 0);
+  setTimeout(syncGlassClip, 300);
+
+  function moveSheen(e){
+    const rect = card.getBoundingClientRect();
+    const x = ((e.touches ? e.touches[0].clientX : e.clientX) - rect.left) / rect.width * 100;
+    const y = ((e.touches ? e.touches[0].clientY : e.clientY) - rect.top) / rect.height * 100;
+    card.style.setProperty('--mx', x + '%');
+    card.style.setProperty('--my', y + '%');
+  }
+  card.addEventListener('pointermove', moveSheen);
+  card.addEventListener('pointerleave', () => {
+    card.style.setProperty('--mx', '50%');
+    card.style.setProperty('--my', '0%');
+  });
+
+  // ===== Drag the whole widget anywhere on the page =====
+  let dragging = false, dragStartX = 0, dragStartY = 0, cardStartLeft = 0, cardStartTop = 0;
+  let positionLocked = false;
+
+  function isInteractive(target){
+    return target.closest('.iconbtn, .seek-track, .seek-thumb, .seek-wrap, button');
+  }
+  function pointFromEvent(e){
+    if(e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+  function onDragStart(e){
+    if(positionLocked) return;
+    if(isInteractive(e.target)) return;
+    const rect = card.getBoundingClientRect();
+    const p = pointFromEvent(e);
+    dragging = true;
+    dragStartX = p.x; dragStartY = p.y;
+    cardStartLeft = rect.left; cardStartTop = rect.top;
+    card.style.transform = 'none';
+    card.style.left = rect.left + 'px';
+    card.style.top = rect.top + 'px';
+    card.style.bottom = 'auto';
+    card.classList.add('dragging');
+    card.setPointerCapture && e.pointerId != null && card.setPointerCapture(e.pointerId);
+  }
+  function onDragMove(e){
+    if(!dragging) return;
+    const p = pointFromEvent(e);
+    const dx = p.x - dragStartX, dy = p.y - dragStartY;
+    const stageRect = stage.getBoundingClientRect();
+    const cardW = card.offsetWidth, cardH = card.offsetHeight;
+    let newLeft = Math.min(Math.max(cardStartLeft + dx, 0), stageRect.width - cardW);
+    let newTop = Math.min(Math.max(cardStartTop + dy, 0), stageRect.height - cardH);
+    card.style.left = newLeft + 'px';
+    card.style.top = newTop + 'px';
+    syncGlassClip();
+    moveSheen(e);
+  }
+  function onDragEnd(){
+    if(!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+  }
+  card.addEventListener('pointerdown', onDragStart);
+  window.addEventListener('pointermove', onDragMove);
+  window.addEventListener('pointerup', onDragEnd);
+  window.addEventListener('pointercancel', onDragEnd);
+  window.addEventListener('resize', () => {
+    if(!card.style.left) return;
+    const rect = card.getBoundingClientRect();
+    const stageRect = stage.getBoundingClientRect();
+    card.style.left = Math.min(Math.max(rect.left, 0), stageRect.width - card.offsetWidth) + 'px';
+    card.style.top = Math.min(Math.max(rect.top, 0), stageRect.height - card.offsetHeight) + 'px';
+  });
+
+  function resetPosition(){
+    card.style.transform = 'translateX(-50%)';
+    card.style.left = '50%';
+    card.style.top = 'auto';
+    card.style.bottom = '6vh';
+    requestAnimationFrame(syncGlassClip);
+  }
+
+  // ============ SETTINGS PANEL ============
+  const gearBtn = document.getElementById('gearBtn');
+  const panel = document.getElementById('panel');
+  gearBtn.addEventListener('click', () => {
+    panel.classList.toggle('open');
+    gearBtn.classList.toggle('open');
+  });
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => toast.classList.remove('show'), 1800);
+  }
+
+  // -- background presets --
+  document.querySelectorAll('#bgSwatches .swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      document.querySelectorAll('#bgSwatches .swatch').forEach(s => s.classList.remove('active'));
+      sw.classList.add('active');
+      stage.style.backgroundImage = '';
+      glassBg.style.backgroundImage = '';
+      stage.dataset.bg = sw.dataset.bg;
+      glassBg.dataset.bg = sw.dataset.bg;
+    });
+  });
+  document.getElementById('bgUpload').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      stage.dataset.bg = '';
+      glassBg.dataset.bg = '';
+      const layered = `linear-gradient(rgba(0,0,0,0.25),rgba(0,0,0,0.25)), url(${reader.result})`;
+      stage.style.backgroundImage = layered;
+      stage.style.backgroundSize = 'cover';
+      stage.style.backgroundPosition = 'center';
+      glassBg.style.backgroundImage = layered;
+      glassBg.style.backgroundSize = 'cover';
+      glassBg.style.backgroundPosition = 'center';
+      document.querySelectorAll('#bgSwatches .swatch').forEach(s => s.classList.remove('active'));
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function bindSwitch(id, initial, onChange){
+    const el = document.getElementById(id);
+    let state = initial;
+    if(state) el.classList.add('on');
+    el.addEventListener('click', () => {
+      state = !state;
+      el.classList.toggle('on', state);
+      onChange(state);
+    });
+    return { get: () => state, set: (v) => { state = v; el.classList.toggle('on', v); } };
+  }
+
+  bindSwitch('toggleAnim', true, (on) => {
+    stage.classList.toggle('animated', on);
+    glassBg.classList.toggle('animated', on);
+  });
+  bindSwitch('toggleThumb', true, (on) => thumb.classList.toggle('hidden', !on));
+  bindSwitch('toggleArtist', true, (on) => artistText.classList.toggle('hidden', !on));
+  bindSwitch('toggleSeek', true, (on) => document.getElementById('seekWrap').classList.toggle('hidden', !on));
+  bindSwitch('toggleHint', true, (on) => document.getElementById('hint').classList.toggle('hidden', !on));
+  bindSwitch('toggleLock', false, (on) => {
+    positionLocked = on;
+    card.classList.toggle('locked', on);
+  });
+
+  function bindRange(id, valId, unit, fmtFn, onChange){
+    const el = document.getElementById(id);
+    const valEl = valId ? document.getElementById(valId) : null;
+    el.addEventListener('input', () => {
+      const v = Number(el.value);
+      if(valEl) valEl.textContent = fmtFn ? fmtFn(v) : (v + unit);
+      onChange(v);
+    });
+  }
+
+  bindRange('blurRange', 'blurVal', 'px', null, (v) => root.style.setProperty('--glass-blur', v + 'px'));
+  bindRange('satRange', 'satVal', '%', null, (v) => root.style.setProperty('--glass-sat', v + '%'));
+  bindRange('radiusRange', 'radiusVal', 'px', null, (v) => { root.style.setProperty('--corner-radius', v + 'px'); syncGlassClip(); });
+  bindRange('refractRange', 'refractVal', '', null, (v) => displaceMap.setAttribute('scale', v));
+  bindRange('rimRange', 'rimVal', '', (v) => (v/100).toFixed(2), (v) => root.style.setProperty('--rim-alpha', v/100));
+  bindRange('cardAlphaRange', 'cardAlphaVal', '', (v) => (v/100).toFixed(2), (v) => root.style.setProperty('--card-alpha', v/100));
+  bindRange('widthRange', 'widthVal', 'px', null, (v) => root.style.setProperty('--card-width', v + 'px'));
+  bindRange('tintAlphaRange', 'tintAlphaVal', '', (v) => (v/100).toFixed(2), (v) => root.style.setProperty('--tint-alpha', v/100));
+
+  function hexToRgb(hex){
+    const m = hex.replace('#','');
+    return [parseInt(m.substr(0,2),16), parseInt(m.substr(2,2),16), parseInt(m.substr(4,2),16)];
+  }
+  document.getElementById('tintColor').addEventListener('input', (e) => {
+    const [r,g,b] = hexToRgb(e.target.value);
+    root.style.setProperty('--tint-r', r);
+    root.style.setProperty('--tint-g', g);
+    root.style.setProperty('--tint-b', b);
+  });
+  document.getElementById('accentColor').addEventListener('input', (e) => {
+    root.style.setProperty('--accent', e.target.value);
+  });
+
+  const fontPairs = {
+    'fraunces-inter': ["'Fraunces', serif", "'Inter', sans-serif"],
+    'playfair-work': ["'Playfair Display', serif", "'Work Sans', sans-serif"],
+    'grotesk-mono': ["'Space Grotesk', sans-serif", "'IBM Plex Mono', monospace"],
+    'poppins-poppins': ["'Poppins', sans-serif", "'Poppins', sans-serif"],
+  };
+  document.getElementById('fontSelect').addEventListener('change', (e) => {
+    const [disp, body] = fontPairs[e.target.value];
+    root.style.setProperty('--font-display', disp);
+    root.style.setProperty('--font-body', body);
+  });
+
+  document.getElementById('titleInput').addEventListener('input', (e) => {
+    customTrack = true;
+    titleText.textContent = e.target.value || ' ';
+  });
+  document.getElementById('artistInput').addEventListener('input', (e) => {
+    customTrack = true;
+    artistText.textContent = e.target.value || ' ';
+  });
+  document.getElementById('artUpload').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      thumb.style.backgroundImage = `url(${reader.result})`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('resetPos').addEventListener('click', () => {
+    resetPosition();
+    showToast('Position reset');
+  });
+
+  function collectSettings(){
+    return {
+      bg: stage.dataset.bg || null,
+      bgCustomImage: stage.style.backgroundImage || null,
+      anim: document.getElementById('toggleAnim').classList.contains('on'),
+      blur: document.getElementById('blurRange').value,
+      sat: document.getElementById('satRange').value,
+      radius: document.getElementById('radiusRange').value,
+      refract: document.getElementById('refractRange').value,
+      rim: document.getElementById('rimRange').value,
+      cardAlpha: document.getElementById('cardAlphaRange').value,
+      width: document.getElementById('widthRange').value,
+      tintColor: document.getElementById('tintColor').value,
+      tintAlpha: document.getElementById('tintAlphaRange').value,
+      font: document.getElementById('fontSelect').value,
+      accent: document.getElementById('accentColor').value,
+      title: titleText.textContent,
+      artist: artistText.textContent,
+      showThumb: document.getElementById('toggleThumb').classList.contains('on'),
+      showArtist: document.getElementById('toggleArtist').classList.contains('on'),
+      showSeek: document.getElementById('toggleSeek').classList.contains('on'),
+      showHint: document.getElementById('toggleHint').classList.contains('on'),
+    };
+  }
+  function applySettings(s){
+    if(!s) return;
+    if(s.bg){ stage.dataset.bg = s.bg; stage.style.backgroundImage=''; glassBg.dataset.bg = s.bg; glassBg.style.backgroundImage=''; }
+    document.querySelectorAll('#bgSwatches .swatch').forEach(sw => sw.classList.toggle('active', sw.dataset.bg === s.bg));
+    if(typeof s.anim === 'boolean'){
+      document.getElementById('toggleAnim').classList.toggle('on', s.anim);
+      stage.classList.toggle('animated', s.anim);
+    }
+    document.getElementById('blurRange').value = s.blur; root.style.setProperty('--glass-blur', s.blur+'px'); document.getElementById('blurVal').textContent = s.blur+'px';
+    document.getElementById('satRange').value = s.sat; root.style.setProperty('--glass-sat', s.sat+'%'); document.getElementById('satVal').textContent = s.sat+'%';
+    document.getElementById('radiusRange').value = s.radius; root.style.setProperty('--corner-radius', s.radius+'px'); document.getElementById('radiusVal').textContent = s.radius+'px';
+    document.getElementById('refractRange').value = s.refract; displaceMap.setAttribute('scale', s.refract); document.getElementById('refractVal').textContent = s.refract;
+    document.getElementById('rimRange').value = s.rim; root.style.setProperty('--rim-alpha', s.rim/100); document.getElementById('rimVal').textContent = (s.rim/100).toFixed(2);
+    document.getElementById('cardAlphaRange').value = s.cardAlpha; root.style.setProperty('--card-alpha', s.cardAlpha/100); document.getElementById('cardAlphaVal').textContent = (s.cardAlpha/100).toFixed(2);
+    document.getElementById('widthRange').value = s.width; root.style.setProperty('--card-width', s.width+'px'); document.getElementById('widthVal').textContent = s.width+'px';
+    document.getElementById('tintColor').value = s.tintColor; const [r,g,b] = hexToRgb(s.tintColor);
+    root.style.setProperty('--tint-r', r); root.style.setProperty('--tint-g', g); root.style.setProperty('--tint-b', b);
+    document.getElementById('tintAlphaRange').value = s.tintAlpha; root.style.setProperty('--tint-alpha', s.tintAlpha/100); document.getElementById('tintAlphaVal').textContent = (s.tintAlpha/100).toFixed(2);
+    document.getElementById('fontSelect').value = s.font; const [disp, body] = fontPairs[s.font];
+    root.style.setProperty('--font-display', disp); root.style.setProperty('--font-body', body);
+    document.getElementById('accentColor').value = s.accent; root.style.setProperty('--accent', s.accent);
+    customTrack = true;
+    titleText.textContent = s.title; document.getElementById('titleInput').value = s.title;
+    artistText.textContent = s.artist; document.getElementById('artistInput').value = s.artist;
+    document.getElementById('toggleThumb').classList.toggle('on', s.showThumb); thumb.classList.toggle('hidden', !s.showThumb);
+    document.getElementById('toggleArtist').classList.toggle('on', s.showArtist); artistText.classList.toggle('hidden', !s.showArtist);
+    document.getElementById('toggleSeek').classList.toggle('on', s.showSeek); document.getElementById('seekWrap').classList.toggle('hidden', !s.showSeek);
+    document.getElementById('toggleHint').classList.toggle('on', s.showHint); document.getElementById('hint').classList.toggle('hidden', !s.showHint);
+    requestAnimationFrame(syncGlassClip);
+  }
+
+  document.getElementById('copySettings').addEventListener('click', async () => {
+    const json = JSON.stringify(collectSettings(), null, 2);
+    try{
+      await navigator.clipboard.writeText(json);
+      showToast('Settings copied');
+    }catch(err){
+      window.prompt('Copy this JSON:', json);
+    }
+  });
+  document.getElementById('pasteSettings').addEventListener('click', async () => {
+    let text = '';
+    try{ text = await navigator.clipboard.readText(); }
+    catch(err){ text = window.prompt('Paste settings JSON:') || ''; }
+    try{
+      const s = JSON.parse(text);
+      applySettings(s);
+      showToast('Settings applied');
+    }catch(err){
+      showToast('Could not read settings');
+    }
+  });
+  document.getElementById('resetAll').addEventListener('click', () => {
+    applySettings({
+      bg:'sunset', anim:true, blur:22, sat:190, radius:32, refract:14, rim:25, cardAlpha:100,
+      width:420, tintColor:'#ffffff', tintAlpha:10, font:'fraunces-inter', accent:'#ffd166',
+      title:'Midnight Drive', artist:'Neon Skyline',
+      showThumb:true, showArtist:true, showSeek:true, showHint:true,
+    });
+    customTrack = false;
+    thumb.style.backgroundImage = '';
+    stage.style.backgroundImage = '';
+    glassBg.style.backgroundImage = '';
+    document.getElementById('toggleAnim').classList.add('on');
+    stage.classList.add('animated');
+    document.getElementById('toggleLock').classList.remove('on');
+    positionLocked = false;
+    card.classList.remove('locked');
+    resetPosition();
+    trackIndex = 0;
+    renderTrack();
+    showToast('Reset to defaults');
+  });
+
+  renderTrack();
+  requestAnimationFrame(syncGlassClip);
+</script>
+
+</body>
+</html>

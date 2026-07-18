@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- translucent glass disc -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.22"
+        android:pathData="M54,54 m-30,0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0" />
+    <!-- rim -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55"
+        android:pathData="M54,54 m-30,0 a30,30 0 1,0 60,0 a30,30 0 1,0 -60,0 M54,54 m-27,0 a27,27 0 1,0 54,0 a27,27 0 1,0 -54,0"
+        android:fillType="evenOdd" />
+    <!-- play triangle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,40 L46,68 L72,54 Z" />
+</vector>
